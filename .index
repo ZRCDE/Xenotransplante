@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title> Simulador de Xenotransplante </title>
+<style>
+  body {
+    background:
+      radial-gradient(circle at top center, #4e9e7e 0%, #2c3e50 70%);
+    color: #eee;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+    margin: 0;
+    padding: 20px;
+    box-shadow: inset 0 0 120px 50px rgba(0,255,180,0.2);
+  }
+  header {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #b8e994;
+    margin-bottom: 20px;
+    text-shadow: 0 0 8px #a4f9c8;
+  }
+  #status {
+    font-weight: 600;
+    margin-bottom: 10px;
+    text-shadow: 0 0 6px #1f8a5f;
+  }
+  #pigOverlay {
+    display: none !important;
+  }
+  #humanOverlay {
+    display: none !important;
+  }
+  #message {
+    background: linear-gradient(135deg, #001122, #002244);
+    border: 2px solid #00ff88;
+    border-radius: 15px;
+    padding: 20px 25px;
+    max-width: 700px;
+    text-align: left;
+    margin-bottom: 30px;
+    font-size: 1.2rem;
+    font-family: 'Courier New', monospace;
+    color: #00ff88;
+    box-shadow: 
+      0 0 20px #00ff88,
+      inset 0 0 10px rgba(0,255,136,0.1);
+    min-height: 80px;
+    position: relative;
+    text-shadow: 0 0 5px #00ff88;
+  }
+
+  #message::before {
+    content: "● SISTEMA MÉDICO ACTIVO";
+    position: absolute;
+    top: -15px;
+    left: 15px;
+    background: linear-gradient(135deg, #001122, #002244);
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    color: #00ff88;
+    border: 1px solid #00ff88;
+    border-radius: 5px;
+  }
+
+  #message::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 15px;
+    width: 8px;
+    height: 8px;
+    background: #00ff88;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+    box-shadow: 0 0 5px #00ff88;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  #gameArea {
+    display: flex;
+    gap: 60px;
+    justify-content: center;
+    flex-wrap: wrap;
+    position: relative;
+    padding-bottom: 130px;
+  }
+  .entity {
+    background: rgba(10,20,10,0.7);
+    padding: 20px;
+    border-radius: 15px;
+    width: 320px;
+    box-shadow: 0 0 35px #0a8060;
+    position: relative;
+  }
+  .entity h2 {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #a1d99b;
+    user-select: none;
+    text-shadow: 0 0 5px #0e4d25;
+  }
+  svg {
+    display: block;
+    margin: 0 auto;
+    cursor: default;
+  }
+  .cut-area {
+    fill: transparent;
+    stroke: #d44;
+    stroke-width: 3;
+    cursor: pointer;
+    transition: fill 0.3s ease;
+  }
+  .cut-area:hover {
+    fill: rgba(255, 0, 0, 0.25);
+  }
+  #heartIcon {
+    fill: #e63946;
+    stroke: #a71d2a;
+    stroke-width: 2;
+    cursor: pointer;
+    user-select: none;
+    filter: drop-shadow(0 0 4px #f72585);
+    transition: transform 0.2s ease;
+  }
+  #heartIcon:hover {
+    transform: scale(1.05);
+  }
+  #floatingHeart {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    user-select: none;
+    cursor: grab;
+    z-index: 9999;
+    display: none;
+  }
+  #floatingHeart svg {
+    width: 100%;
+    height: 100%;
+  }
+  #humanImplantArea {
+    fill: none;
+    stroke: #e55;
+    stroke-width: 4;
+    stroke-dasharray: 8 6;
+    pointer-events: none;
+    opacity: 0.5;
+    transition: stroke 0.3s ease, opacity 0.3s ease;
+  }
+  #humanImplantArea.implanted {
+    stroke: #3c9;
+    opacity: 1;
+  }
+  #controls {
+    margin-top: 30px;
+    text-align: center;
+  }
+  button {
+    background: linear-gradient(145deg, #16a085, #1abc9c);
+    border: none;
+    border-radius: 30px;
+    padding: 15px 40px;
+    font-size: 1.3rem;
+    color: white;
+    cursor: pointer;
+    margin: 0 15px;
+    transition:
+      background-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.15s ease;
+    box-shadow:
+      0 8px 15px rgba(22,160,133,0.5),
+      inset 0 -4px 8px rgba(26,188,156,0.6);
+    font-weight: 700;
+    user-select: none;
+    text-shadow: 0 0 5px #117a63;
+  }
+  button:hover:not(:disabled) {
+    background: linear-gradient(145deg, #1abc9c, #16a085);
+    box-shadow:
+      0 12px 25px rgba(22,160,133,0.7),
+      inset 0 -6px 10px rgba(26,188,156,0.8);
+    transform: translateY(-3px);
+  }
+  button:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow:
+      0 6px 10px rgba(22,160,133,0.4),
+      inset 0 -3px 6px rgba(26,188,156,0.6);
+  }
+  button:disabled {
+    background: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+  #pigBed, #humanBed {
+    position: absolute;
+    bottom: 0;
+    width: 320px;
+    height: 80px;
+    background: linear-gradient(145deg, #487850, #2a5a33);
+    border-radius: 20px 20px 10px 10px;
+    box-shadow:
+      inset 0 5px 8px #2b4725,
+      0 6px 12px rgba(0,0,0,0.7);
+    z-index: -1;
+  }
+  #pigBed {
+    left: 20px;
+  }
+  #humanBed {
+    right: 20px;
+  }
+  .bedPad {
+    position: absolute;
+    bottom: 75px;
+    width: 200px;
+    height: 25px;
+    background: linear-gradient(145deg, #9dcfa4, #618c65);
+    border-radius: 15px;
+    box-shadow: inset 0 2px 6px #8baf8a;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));
+  }
+  #pigPad {
+    left: 75px;
+    bottom: 75px;
+  }
+  #humanPad {
+    right: 75px;
+    bottom: 75px;
+  }
+  #instrumentTable {
+    position: absolute;
+    bottom: 0;
+    left: calc(50% - 70px);
+    width: 140px;
+    height: 80px;
+    background: linear-gradient(135deg, #666c54, #444932);
+    border-radius: 15px 15px 8px 8px;
+    box-shadow: inset 0 0 12px #3a3e27, 0 4px 8px rgba(0,0,0,0.7);
+    z-index: 1;
+  }
+  #instrumentTable svg {
+    position: relative;
+    top: 12px;
+    left: 12px;
+  }
+  #monitor {
+    position: absolute;
+    bottom: 85px;
+    right: 10px;
+    width: 100px;
+    height: 70px;
+    background: linear-gradient(135deg, #222922, #1a2016);
+    border-radius: 12px;
+    box-shadow: 0 0 12px #0f4c2f inset;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  #monitorScreen {
+    width: 70px;
+    height: 50px;
+    background: linear-gradient(135deg, #0a803d, #004d21);
+    border-radius: 6px;
+    box-shadow: inset 0 0 12px #10a95b;
+    filter: drop-shadow(0 0 4px #18d571);
+  }
+</style>
+</head>
+<body>
+
+<header> Simulador de Xenotransplante </header>
+
+<div id="status" aria-live="polite" aria-atomic="true">Estado: Preparación</div>
+<div id="message" role="alert">Por favor, ponte los guantes estériles para comenzar el procedimiento.</div>
+
+<div id="gameArea" aria-label="Área de operación">
+
+  <div id="pigBed" aria-hidden="true"></div>
+  <div id="humanBed" aria-hidden="true"></div>
+  <div id="pigPad" class="bedPad" aria-hidden="true"></div>
+  <div id="humanPad" class="bedPad" aria-hidden="true"></div>
+
+  <div id="instrumentTable" aria-hidden="true" title="Mesa quirúrgica">
+    <svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img" focusable="false">
+      <rect x="10" y="15" width="60" height="6" rx="3" fill="#aaa"/>
+      <circle cx="30" cy="18" r="8" stroke="#888" stroke-width="2" fill="none"/>
+      <rect x="75" y="10" width="8" height="20" rx="3" fill="#bbb"/>
+      <rect x="90" y="18" width="20" height="4" rx="2" fill="#999"/>
+    </svg>
+  </div>
+
+  <div id="monitor" aria-hidden="true" title="Monitor de signos vitales">
+    <div id="monitorScreen"></div>
+  </div>
+
+  <section class="entity" aria-label="Cerdo donante">
+    <h2>Cerdo</h2>
+    <svg width="300" height="400" viewBox="0 0 300 400" aria-hidden="true" role="img" focusable="false">
+      <ellipse cx="150" cy="220" rx="120" ry="150" fill="#d26a6a" stroke="#a13f3f" stroke-width="3" />
+      <circle cx="80" cy="100" r="60" fill="#d26a6a" stroke="#a13f3f" stroke-width="3" />
+      <polygon points="45,50 75,60 60,80" fill="#a13f3f" transform="translate(-5, -10)"/>
+      <polygon points="115,50 85,60 100,80" fill="#a13f3f" transform="translate(5, -10)"/>
+      <circle cx="60" cy="90" r="10" fill="#442222" />
+      <circle cx="100" cy="90" r="10" fill="#442222" />
+      <ellipse cx="80" cy="130" rx="30" ry="20" fill="#b54c4c" />
+      <rect id="pigCutArea" class="cut-area" x="110" y="150" width="70" height="70" />
+      <rect id="pigOverlay" x="140" y="245" width="20" height="10" fill="rgba(139,69,19,0.8)" style="opacity:0; transition: opacity 0.4s ease;" />
+      <g id="heart" aria-label="Corazón del cerdo" role="img" tabindex="0" style="display:none; cursor:pointer;" transform="translate(122,160)">
+        <path id="heartIcon" fill="#e63946" stroke="#a71d2a" stroke-width="2" d="M24 42s-1.7-1.5-4.5-3.9C14 34.3 4 27.4 4 16.5 4 10.1 9.1 5 15.5 5 c3.6 0 7 1.9 8.5 4.7C25.5 6.9 28.9 5 32.5 5 38.9 5 44 10.1 44 16.5 c0 10.9-10 17.8-15.5 21.6C25.7 40.5 24 42 24 42z"/>
+      </g> 
+    </svg>
+  </section>
+
+  <section class="entity" aria-label="Humano receptor">
+    <h2>Humano</h2>
+    <svg width="300" height="400" viewBox="0 0 300 400" aria-hidden="true" role="img" focusable="false">
+      <rect x="80" y="100" width="140" height="220" rx="80" ry="100" fill="#c3b28a" stroke="#8a7e55" stroke-width="3" />
+      <circle cx="150" cy="50" r="40" fill="#c3b28a" stroke="#8a7e55" stroke-width="3" />
+      <circle cx="135" cy="45" r="6" fill="#333" />
+      <circle cx="165" cy="45" r="6" fill="#333" />
+      <rect x="135" y="80" width="30" height="8" rx="4" ry="4" fill="#a16f4d" />
+      <rect id="humanCutArea" class="cut-area" x="140" y="120" width="70" height="70" />
+      <rect id="humanOverlay" x="140" y="225" width="20" height="15" fill="rgba(139,69,19,0.8)" style="opacity:0; transition: opacity 0.4s ease;" />
+      <rect id="humanImplantArea" x="155" y="135" width="40" height="40" rx="140" ry="225" />
+    </svg>
+  </section>
+
+</div>
+
+<div id="controls" role="region" aria-label="Controles del juego">
+  <button id="btnNext">Comenzar</button>
+  <button id="btnReset" disabled>Reiniciar</button>
+</div>
+
+<div id="floatingHeart" role="button" tabindex="0" aria-label="Corazón para implantar">
+  <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#e63946" stroke="#a71d2a" stroke-width="2">
+    <path d="M24 42s-1.7-1.5-4.5-3.9C14 34.3 4 27.4 4 16.5 4 10.1 9.1 5 15.5 5 c3.6 0 7 1.9 8.5 4.7C25.5 6.9 28.9 5 32.5 5 38.9 5 44 10.1 44 16.5 c0 10.9-10 17.8-15.5 21.6C25.7 40.5 24 42 24 42z"/>
+  </svg>
+</div>
+
+<script>
+(() => {
+  const stages = [
+    "Preparación",
+    "Abrir piel del cerdo",
+    "Extraer corazón del cerdo",
+    "Abrir piel del humano",
+    "Implantar corazón",
+    "Monitoreo",
+    "Finalizado"
+  ];
+
+  let state = {
+    stage: 0,
+    pigOpened: false,
+    pigHeartExtracted: false,
+    heartOnTable: false,
+    humanOpened: false,
+    heartImplanted: false,
+    draggingHeart: false,
+    vitals: 75,
+    errorTimeout: null,
+  };
+
+  const status = document.getElementById("status");
+  const message = document.getElementById("message");
+  const btnNext = document.getElementById("btnNext");
+  const btnReset = document.getElementById("btnReset");
+
+  const pigCutArea = document.getElementById("pigCutArea");
+  const pigOverlay = document.getElementById("pigOverlay");
+  const heart = document.getElementById("heart");
+
+  const humanCutArea = document.getElementById("humanCutArea");
+  const humanOverlay = document.getElementById("humanOverlay");
+  const humanImplantArea = document.getElementById("humanImplantArea");
+
+  const floatingHeart = document.getElementById("floatingHeart");
+  const instrumentTable = document.getElementById("instrumentTable");
+
+  function setMessage(msg, isError=false) {
+    message.textContent = msg;
+    if(isError){
+      message.style.backgroundColor = "rgba(128,0,0,0.8)";
+      message.style.boxShadow = "0 0 14px #900";
+    } else {
+      message.style.backgroundColor = "rgba(0,0,0,0.5)";
+      message.style.boxShadow = "0 0 14px #1abc9c";
+    }
+  }
+  function setStatus(text){
+    status.textContent = `Estado: ${text}`;
+  }
+
+  function resetGame(){
+    state = {
+      stage: 0,
+      pigOpened: false,
+      pigHeartExtracted: false,
+      heartOnTable: false,
+      humanOpened: false,
+      heartImplanted: false,
+      draggingHeart: false,
+      vitals: 75,
+      errorTimeout: null,
+    };
+    pigOverlay.style.opacity = "0";
+    humanOverlay.style.opacity = "0";
+    heart.style.display = "none";
+    floatingHeart.style.display = "none";
+    humanImplantArea.classList.remove("implanted");
+    humanImplantArea.style.pointerEvents = "none";
+    pigCutArea.style.pointerEvents = "none";
+    humanCutArea.style.pointerEvents = "none";
+    btnNext.disabled = false;
+    btnReset.disabled = true;
+    btnNext.textContent = "Comenzar";
+    btnNext.style.display = "inline-block";
+    message.style.backgroundColor = "rgba(0,0,0,0.5)";
+    message.style.boxShadow = "0 0 14px #1abc9c";
+  }
+
+  function failAndRestart(reason){
+    setMessage("ERROR: " + reason + " El procedimiento falló. Reiniciando...", true);
+    btnNext.disabled = true;
+    pigCutArea.style.pointerEvents = "none";
+    humanCutArea.style.pointerEvents = "none";
+    humanImplantArea.style.pointerEvents = "none";
+    floatingHeart.style.display = "none";
+    clearTimeout(state.errorTimeout);
+    state.errorTimeout = setTimeout(() => {
+      resetGame();
+    }, 4000);
+  }
+
+  function startStage(){
+    setStatus(stages[state.stage]);
+
+    switch(state.stage){
+      case 0:
+        setMessage("Presiona 'Comenzar' para iniciar el procedimiento.");
+        btnNext.textContent = "Comenzar";
+        pigCutArea.style.pointerEvents = "none";
+        humanCutArea.style.pointerEvents = "none";
+        humanImplantArea.style.pointerEvents = "none";
+        btnReset.disabled = true;
+        break;
+      case 1:
+        setMessage("Haz clic en la piel del cerdo para abrirla.");
+        pigCutArea.style.pointerEvents = "auto";
+        btnNext.disabled = true;
+        break;
+      case 2:
+        setMessage("Extrae cuidadosamente el corazón del cerdo (haz clic sobre él).");
+        pigCutArea.style.pointerEvents = "none";
+        heart.style.display = "block";
+        floatingHeart.style.display = "none";
+        btnNext.disabled = true;
+        break;
+      case 3:
+        setMessage("Haz clic en la piel del humano para abrirla.");
+        pigCutArea.style.pointerEvents = "none";
+        humanCutArea.style.pointerEvents = "auto";
+        floatingHeart.style.display = "block";
+        floatingHeart.style.position = "absolute";
+        btnNext.disabled = true;
+        break;
+      case 4:
+        setMessage("Arrastra el corazón y colócalo en el pecho del humano.");
+        humanCutArea.style.pointerEvents = "none";
+        humanImplantArea.style.pointerEvents = "auto";
+        floatingHeart.style.cursor = "grab";
+        btnNext.disabled = true;
+        break;
+      case 5:
+        setMessage("Monitoreando signos vitales. Espera...");
+        humanImplantArea.style.pointerEvents = "none";
+        floatingHeart.style.display = "none";
+        monitorVitals();
+        btnNext.disabled = true;
+        break;
+      case 6:
+        setMessage("Procedimiento finalizado con éxito. ¡Buen trabajo!");
+        btnNext.disabled = true;
+        btnReset.disabled = false;
+        break;
+    }
+  }
+
+  pigCutArea.addEventListener("click", () => {
+    if(state.stage !== 1) return;
+    pigOverlay.style.opacity = "0.6";
+    state.pigOpened = true;
+    setMessage("Piel abierta. Ahora haz clic en el corazón para extraerlo.");
+    state.stage = 2; 
+    startStage();
+  });
+
+  heart.addEventListener("click", () => {
+    if(state.stage !== 2) return;
+    state.pigHeartExtracted = true;
+    heart.style.display = "none";
+    const gameAreaRect = document.getElementById("gameArea").getBoundingClientRect();
+    floatingHeart.style.left = "calc(50% - 40px)";
+    floatingHeart.style.top = "840px";
+    floatingHeart.style.display = "block";
+
+    btnNext.disabled = false;
+    setMessage("Corazón extraído y colocado en la mesa. Ahora haz clic en la piel del humano para abrirla.");
+    state.stage = 3;
+    startStage();
+  });
+
+  humanCutArea.addEventListener("click", () => {
+    if(state.stage !== 3) return;
+    humanOverlay.style.opacity = "0.6";
+    state.humanOpened = true;
+    setMessage("Piel del humano abierta. Ahora arrastra el corazón para implantarlo.");
+    state.stage = 4;
+    startStage();
+  });
+
+  function startDrag(e){
+    if(state.stage !== 4) return; 
+    state.draggingHeart = true;
+    floatingHeart.style.cursor = "grabbing";
+    e.preventDefault();
+  }
+  floatingHeart.addEventListener("mousedown", startDrag);
+  floatingHeart.addEventListener("touchstart", startDrag);
+
+  document.addEventListener("mouseup", (e) => {
+    if(!state.draggingHeart) return;
+    state.draggingHeart = false;
+    floatingHeart.style.cursor = "grab";
+
+    if(state.stage === 4){
+      const implantRect = humanImplantArea.getBoundingClientRect();
+      const heartRect = floatingHeart.getBoundingClientRect();
+      const centerX = heartRect.left + heartRect.width/2;
+      const centerY = heartRect.top + heartRect.height/2;
+
+      if(centerX > implantRect.left && centerX < implantRect.right &&
+         centerY > implantRect.top && centerY < implantRect.bottom){
+        state.heartImplanted = true;
+        humanImplantArea.classList.add("implanted");
+        floatingHeart.style.display = "none";
+        setMessage("Corazón implantado correctamente. Monitoreando signos vitales...");
+        state.stage = 5;
+        startStage();
+      } else {
+        failAndRestart("Has implantado el corazón fuera del área correcta.");
+      }
+    }
+  });
+
+  document.addEventListener("touchend", (e) => {
+    if(state.draggingHeart){
+      document.dispatchEvent(new MouseEvent('mouseup', e));
+    }
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if(state.draggingHeart){
+      e.preventDefault();
+      floatingHeart.style.position = "absolute";
+      floatingHeart.style.left = (e.pageX - 40) + "px";
+      floatingHeart.style.top = (e.pageY - 40) + "px";
+      floatingHeart.style.zIndex = "9999";
+    }
+  });
+
+  document.addEventListener("touchmove", (e) => {
+    if(state.draggingHeart && e.touches.length === 1){
+      e.preventDefault();
+      const touch = e.touches[0];
+      floatingHeart.style.position = "absolute";
+      floatingHeart.style.left = (touch.pageX - 40) + "px";
+      floatingHeart.style.top = (touch.pageY - 40) + "px";
+      floatingHeart.style.zIndex = "9999";
+    }
+  });
+
+  let monitorInterval;
+  function monitorVitals(){
+    let count = 0;
+    monitorInterval = setInterval(() => {
+      if(count >= 12){
+        clearInterval(monitorInterval);
+        setMessage("Monitoreo completado. Presiona 'Finalizar' para completar el procedimiento.");
+        btnNext.style.display = "inline-block";
+        btnNext.textContent = "Finalizar";
+        btnNext.disabled = false;
+        return;
+      }
+      const delta = (Math.random() * 6 - 3);
+      state.vitals = Math.min(120, Math.max(60, state.vitals + delta));
+      setMessage(`Monitoreo en curso. Ritmo cardíaco: ${state.vitals.toFixed(0)} bpm.`);
+      count++;
+    }, 1000);
+  }
+
+  btnNext.addEventListener("click", () => {
+    if(state.stage === 0){
+      state.stage = 1;
+      startStage();
+      btnReset.disabled = false;  
+      btnNext.style.display = "none"; 
+    } else if(state.stage === 5){
+      state.stage++;
+      startStage();
+    }
+  });
+
+  btnReset.addEventListener("click", () => {
+    clearInterval(monitorInterval);  
+    clearTimeout(state.errorTimeout); 
+    resetGame();
+    startStage();  
+  });
+
+  resetGame();
+
+})();
+</script>
+
+</body>
+</html>
